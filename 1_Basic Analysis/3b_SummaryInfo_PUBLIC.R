@@ -6,10 +6,17 @@
 
 PopData<-read.csv("CorrectedDataAll.csv",as.is=T)
 
-# Measurements
-Counts<-grep("P[0-9]{1,2}[A-z]+$",names(PopData))
+# Creating indexes for columns that indicate the number of individuals in each plot. 
+#Counts<-grep("P[0-9]{1,2}[A-z]+$",names(PopData))
+Counts<-grep("P[0-9]{1,2}Adult+$|P[0-9]{1,2}Ros+$",names(PopData))
+
+#' Creating indexes for columns that are a peice of data on a plant individual 
+#' (i.e., size, number of leaves, fecundity, leaf damage and fungal damage). 
 Measures<-grep("P[0-9]{1,2}[A-z]+[0-9]{1,2}",names(PopData))
+colnames(PopData[,Measures])
+
 Other<-grep("Pop_Size|Pct_Canopy_Cover|Population_Type|None_Known|Collection_Date|Region",names(PopData))
+
 
 # Some basic statistics on the success of the project
 
@@ -28,6 +35,10 @@ sum(colSums(!is.na(PopData[,grep("Fung[0-9]+",names(PopData))])))
 
 # Find Unique Sites
 UniPops<-PopData[!duplicated(PopData[,c("Latitude","Longitude")]),]
+
+
+
+
 # Number of unique population locations
 nrow(unique(UniPops))
 # Number of unique North American Populations
