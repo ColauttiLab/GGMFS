@@ -10,7 +10,6 @@
 PopData<-read.csv("CorrectedDataAll.csv",as.is=T)
 
 # Creating an index for columns that indicate the number of individuals in each plot. 
-#Counts<-grep("P[0-9]{1,2}[A-z]+$",names(PopData))
 Counts<-grep("P[0-9]{1,2}Adult+$|P[0-9]{1,2}Ros+$",names(PopData))
 
 #' Creating an index for columns that describe data on a plant individual 
