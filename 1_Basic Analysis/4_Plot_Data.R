@@ -15,6 +15,7 @@ source("Functions/plotcounts.R")
 ##############################
 # Import corrected data
 CorData<-read.csv("CorrectedDataAll.csv",header=T,as.is=T)
+
 ##########################################################################################
 
 ##########################################################################################
@@ -25,6 +26,7 @@ YearPlt<-c("#CCFBFE33","#E4C1F933","#FF3C3833","#ffc50b33","#DBFE8733")
 # Make an output directory unless it exists already
 dir.create(file.path(getwd(), "DataExplore"), showWarnings = FALSE)
 pdf("DataExplore/BasicGraphs.pdf")
+
 ## Basic graphs
  PData<-plotvars("Leaves","Fruits")
  ggplot(aes(x=log(Fruits+1),y=log(Leaves+1),group=Year,col=Year),data=PData) + geom_point(size=5,pch=1,alpha=0.3) + geom_point(size=5,pch=16) + geom_smooth(method=lm) + 

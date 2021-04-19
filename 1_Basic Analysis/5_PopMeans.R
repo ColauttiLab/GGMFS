@@ -1,5 +1,5 @@
 ##########################################################
-### This script Calculates population-level averages   ###
+### This script calculates population-level averages   ###
 ### Then it compares native vs. introduced populations ###
 ##########################################################
 library(ggplot2)
@@ -95,7 +95,7 @@ PopMeans$PerfInd<-PopMeans$Fruits*(PopMeans$AdultDens*PopMeans$Pop_Size+PopMeans
 PopMeans$PerfInd<-log(PopMeans$PerfInd+1)
 
 #########################
-## 3. Plot Historgrams comparing avg native vs. introduced populations
+## 3. Plot Histograms comparing avg native vs. introduced populations
 #########################
 # Create directories if they don't already exist
 dir.create(file.path(getwd(), "Histograms"), showWarnings = FALSE)
