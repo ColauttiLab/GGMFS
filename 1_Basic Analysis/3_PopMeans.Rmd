@@ -1,0 +1,276 @@
+---
+title: "PopMeans"
+author: "GGMFS Team"
+date: "19/04/2021"
+output: html_document
+---
+
+This script calculates population-level averages. Then it compares native vs. introduced populations. 
+
+## Data prep and function load
+```{r}
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(dplyr)
+library(tidyr)
+
+# Plotting theme
+source("../Functions/theme_black.R")
+
+# Create long-form data frame of individual plant traits. 
+source("../Functions/plotvars.R")
+
+# Create long-form data frame of plot-level count data 
+source("../Functions/plotcounts.R")
+
+# Include bootstrap estimates of mean and P
+source("../Functions/regionbootstrap.R") # Default Parameters: (BData,BVar="Fruits",NIter=10000)
+
+# Data for plotting histograms
+source("../Functions/plothist.R")
+
+# Import corrected data
+CorData<-read.csv("../CorrectedDataAll.csv",header=T,as.is=T)
+
+# Create directories if they don't already exist
+dir.create(file.path(getwd(), "../Histograms"), showWarnings = FALSE)
+dir.create(file.path(getwd(), "../Key Results"), showWarnings = FALSE)
+
+```
+
+## Calculate population averages for density and abundance, herbivore and fungal frequency in plots. 
+```{r}
+# Each measurement is done separately, because some rosette densities show NA where adult densities do not and vice versa. This is likely because nothing was sometimes recorded if adults or bolts were not present. Divide by 0.5 to get density (plants per m2). 
+
+
+#Adult 
+# Converting to long form
+Density<-plotcounts("Adult",NA) 
+
+# Summarizing to the population level. 
+Adu<-Density %>% group_by(Pop_Code) %>% 
+  summarize(AdultSum=sum(Adult),
+            NPlot_Adult=n(),
+            AdultDens=AdultSum/NPlot_Adult/0.5,
+            AdultDensMax= max(Adult/0.5))
+
+
+# Rosette
+# Converting to long form
+Density<-plotcounts("Ros",NA) 
+# Summarizing to the population level. 
+Ros<-Density %>% group_by(Pop_Code) %>% 
+  summarize(RosSum=sum(Ros),
+            NPlot_Ros=n(),
+            RosDens=RosSum/NPlot_Ros/0.5,
+            RosDensMax= max(Ros)/0.5)
+
+
+# Fungal abundance on rosettes in plots. 
+# Converting to long form
+Density<-plotcounts("RosFung","Ros") 
+#Removing values for which there were no rosettes, as fungal abundance cannot be calculated. 
+Density$Ros[Density$Ros==0]<-NA
+# Summarizing to the population level. 
+RosFung<-Density %>% drop_na(Ros) %>% group_by(Pop_Code) %>% 
+  summarize(PctRosFung=sum(RosFung)/sum(Ros))
+
+# Fungal abundance on Adults in plots. 
+# Converting to long form
+Density<-plotcounts("AdultFung","Adult") 
+#Removing values for which there were no Adults, as fungal abundance cannot be calculated. 
+Density$Adult[Density$Adult==0]<-NA
+# Summarizing to the population level. 
+AdultFung<-Density %>% drop_na(Adult) %>% group_by(Pop_Code) %>% 
+  summarize(PctAdultFung=sum(AdultFung)/sum(Adult))
+
+
+# Create data frame of population level data.
+PopData<-CorData[,grep("P[0-9]+",names(CorData),invert=T)] 
+
+# Joining data frames together and adding in other important population-level data
+PopMeans2<-Adu %>% full_join(Ros,by="Pop_Code") %>% full_join(AdultFung,by="Pop_Code") %>%
+  full_join(RosFung,by="Pop_Code") %>% 
+  left_join(PopData,by="Pop_Code")
+
+
+#Obtaining Total density and rosette ratio, and total abundance  (an estimate based on how dense the population is and how large the population is)
+PopMeans2<-PopMeans2 %>%
+  mutate(TotalDens=RosDens+AdultDens,
+         RosRatio = log(RosSum+1)-log(AdultSum+1),
+         Population_Abundance=TotalDens*Pop_Size ) 
+
+
+
+```
+
+## Calculate population averages of plant traits. 
+```{r}
+#These traits are summarized separated for each measurement. Most traits were not recorded plant (in the same meter in the plot), and would be removed by the plotvars function if rows are not complete. This averages each trait within each plot seperately, based on the unique number of measurements of each trait in each plot.  
+
+#Adult height
+# Converting to long form 
+Traits<-plotvars("Adult",NA) 
+# Summarizing to the population level. 
+Adu<-Traits %>% group_by(Pop_Code) %>% 
+  summarize(MeanAdultHeight=mean(Adult))
+
+# Rosette size
+# Converting to long form
+Traits<-plotvars("Ros",NA) 
+# Summarizing to the population level. 
+Ros<-Traits %>% group_by(Pop_Code) %>% 
+  summarize(MeanRosSize=mean(Ros))
+
+# Leaves
+# Converting to long form
+Traits<-plotvars("Leaves",NA) 
+# Summarizing to the population level. 
+Leaves<-Traits %>% group_by(Pop_Code) %>% 
+  summarize(MeanLeaves=mean(Leaves))
+
+# Fruits
+# Converting to long form
+Traits<-plotvars("Fruits",NA) 
+# Summarizing to the population level. 
+Fruits<-Traits %>% group_by(Pop_Code) %>% 
+  summarize(MaxFruits=max(Fruits),
+            MeanFruits=mean(Fruits),
+            )
+
+# Herbivore damage (Dmg and Leaf # are needed to calculate %)
+# Converting to long form
+Traits<-plotvars("Dmg","Leaves") 
+#Must remove 0 values from leaves, because a % herbivory cannot be caluculated with no leaves. 
+Traits$Leaves[Traits$Leaves==0]<-NA
+# Summarizing to the population level. 
+# Because the denominators are different, we could the harmonic mean, although this does not allow zeros to be included, therefore arithmetic mean was used instead.
+Dmg<-Traits %>% drop_na(Leaves) %>% group_by(Pop_Code) %>% 
+  summarize(MeanHerbDmg=mean(Dmg/Leaves)
+            )
+
+
+# Fungal damage (Fung and Leaf # are needed to calculate %)
+# Converting to long form
+Traits<-plotvars("Fung","Leaves") 
+#Must remove 0 values from leaves, because a % herbivory cannot be caluculated with no leaves. 
+Traits$Leaves[Traits$Leaves==0]<-NA
+# Summarizing to the population level. 
+Fung<-Traits %>% drop_na(Leaves) %>% group_by(Pop_Code) %>% 
+  summarize(MeanFungDmg=mean(Fung/Leaves)
+            )
+
+
+#Merging individuals data with population-level data. 
+PopMeans3<-Adu %>% full_join(Ros,by="Pop_Code") %>%
+  full_join(Leaves,by="Pop_Code") %>%
+  full_join(Fruits,by="Pop_Code") %>% 
+  full_join(Dmg,by="Pop_Code") %>% 
+  full_join(Fung,by="Pop_Code") %>% 
+  full_join(PopMeans2)
+
+
+# Calculate Perfomance Index (based on estimated fruit production over 2-year cycle)
+# See transition probabilities in Davis et al. (Ecol App 2012) --> survival over summer and winter = 0.105
+PopMeans3 <-PopMeans3 %>% mutate(PerfInd=log((MeanFruits*(AdultDens*Pop_Size+RosDens*Pop_Size*0.105))+1))
+
+```
+
+## 3. Plot Histograms comparing avg native vs. introduced populations
+```{r}
+### Compare Sampling Date between regions
+#P values are generated using a permutation test (which resampled region) to determine whether differences amoung regions occurred by chance. Default replication number is 1000. 
+
+#Open file
+png("../Histograms/SampleDate.png",width=12,height=12,units="in",res=200)
+
+  plothist(PData=PopMeans3,xval="Day",BWth=20,HJust=0.2)+ggtitle("Sampling day")+xlab("Julian Day")
+  
+dev.off()
+
+
+### Individual Plant Performance
+# Height plot
+pHt<-plothist(xval="MeanAdultHeight",BWth=15,HJust=0.2)+ggtitle("Adult height")+xlab("cm")+xlim(0,round(max(PopMeans3$MeanAdultHeight,na.rm=T),0))
+# Leaves plot
+pLv<-plothist(xval="MeanLeaves",BWth=0.2)+ggtitle("Adult leaves")+xlab("N")+scale_x_log10()
+# Fruits plot
+pFrt<-plothist(xval="MeanFruits",BWth=0.2)+ggtitle("Fruits")+xlab("N")+scale_x_log10()
+# Rosette size plots
+pRoS<-plothist(xval="MeanRosSize",BWth=0.2)+ggtitle("Rosette width")+xlab("cm")+scale_x_log10()
+
+## OUTPUT
+png("../Histograms/Performance.png",width=21,height=14,units="in",res=200)
+  grid.arrange(pHt,pLv,pFrt,pRoS,nrow=2,left=textGrob("Frequency",gp=gpar(cex=4),rot=90))
+dev.off()
+
+
+### Densities
+# Adult Density
+pAdD<-plothist(xval="AdultDens",BWth=0.4)+ggtitle("Adult density")+xlab(expression("log(N/"*m^"2"*")"))+scale_x_log10()
+# Rosette Density
+pRoD<-plothist(xval="RosDens",BWth=0.4)+ggtitle("Rosette density")+xlab(expression("log(N/"*m^"2"*")"))+scale_x_log10()
+# Total Density
+pTD<-plothist(xval="TotalDens",BWth=0.4)+ggtitle("Total density")+xlab(expression("log(N/"*m^"2"*")"))+scale_x_log10()
+## OUTPUT
+png("../Histograms/PopDensity.png",width=21,height=14,units="in",res=200)
+  grid.arrange(arrangeGrob(pAdD,pRoD,ncol=2),pTD,nrow=2,left=textGrob("Frequency",gp=gpar(cex=4),rot=90))
+dev.off()
+
+### Population performance
+# Population extent (Area)
+pPSi<-plothist(xval="Pop_Size",BWth=0.5)+ggtitle("Population extent")+xlab(expression("log("*m^"2"*")"))+scale_x_log10()
+# Total Estimated Pop Size
+pEsS<-plothist(xval="Population_Abundance",BWth=0.5,HLoc=1000000)+ggtitle("Total population size\n(extent * density)")+xlab("log(Individuals)")+scale_x_log10()
+## OUTPUT
+png("../Histograms/PopSize.png",width=21,height=14,units="in",res=200)
+  grid.arrange(pPSi,pEsS,nrow=2,left=textGrob("Frequency",gp=gpar(cex=4),rot=90))
+dev.off()
+
+### Rosette Ratio
+pRoR<-plothist(xval="RosRatio",BWth=0.8,HLoc=6)+ggtitle("Rosette ratio")+xlab("log(Ros/Adult)")
+## OUTPUT
+png("../Histograms/Rosette_Ratio.png",width=21,height=14,units="in",res=200)
+  pRoR+ylab("Frequency")
+dev.off()
+
+### Performance Index
+pPerfInd<-plothist(xval="PerfInd",BWth=2,HLoc=6)+ggtitle("Performance Index")+xlab("log(Predicted Fruits)")
+png("../Histograms/PerfInd.png",width=21,height=14,units="in",res=200)
+  pPerfInd+ylab("Frequency")
+dev.off()
+
+### Fungal damage
+# Fungal infection rates and damage
+FSz<-32 # Font size
+pPcRF<-plothist(xval="PctRosFung",BWth=0.01,HLoc=1,HJust=1,FntSz=FSz)+ggtitle("Rosette infect. rate")
+pPcAF<-plothist(xval="PctAdultFung",BWth=0.01,HLoc=1,HJust=1,FntSz=FSz)+ggtitle("Adult infect. rate")
+pFd<-plothist(xval="MeanFungDmg",BWth=0.01,HLoc=1,HJust=1,FntSz=FSz)+ggtitle("Avg. adult dmg.")
+# same but with zeros excluded
+pPcRFn<-plothist(PData=PopMeans3[!is.na(PopMeans3$PctRosFung) & PopMeans3$PctRosFung>0,],xval="PctRosFung",BWth=0.01,HLoc=1,HJust=1,FntSz=FSz)
+pPcAFn<-plothist(PData=PopMeans3[!is.na(PopMeans3$PctAdultFung) & PopMeans3$PctAdultFung>0,],xval="PctAdultFung",BWth=0.01,HLoc=1,HJust=1,FntSz=FSz)
+pFdn<-plothist(PData=PopMeans3[!is.na(PopMeans3$MeanFungDmg) & PopMeans3$MeanFungDmg>0,],xval="MeanFungDmg",BWth=0.01,HLoc=1,HJust=1,FntSz=FSz)
+
+## OUTPUT
+png("../Histograms/Fungal_Infection.png",width=21,height=14,units="in",res=200)
+  grid.arrange(pPcRF,pPcAF,pFd,pPcRFn,pPcAFn,pFdn,ncol=3,left=textGrob("Frequency",gp=gpar(cex=3),rot=90),bottom=textGrob("Proportion",gp=gpar(cex=3))) 
+dev.off()
+
+### Herbivory Damage
+pHrb<-plothist(xval="MeanHerbDmg",BWth=0.1,HLoc=1,HJust=1,FntSz=24)+ggtitle("Avg. herbivore damge")+xlab("Proportion of leaves")+ylab("Frequency")
+
+## OUTPUT
+png("../Histograms/Herbivory.png",width=7,height=7,units="in",res=200)
+  pHrb
+dev.off()
+```
+
+
+
+
+### Output Population Means
+```{r}
+write.csv(PopMeans3,"../Population_Means.csv", row.names=FALSE) 
+```
+

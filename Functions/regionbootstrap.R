@@ -1,17 +1,33 @@
 # Bootstrap function to test mean difference between regions
-regionbootstrap<-function(BData,BVar="Fruits",NIter=10000){
-  BData<-BData[,c(BVar,"Region")]
-  RegMeans<-tapply(BData[,BVar],list(BData$Region),mean,na.rm=T)
-  RegDiff<-RegMeans[["NorthAm"]]-RegMeans[["Europe"]]
+regionbootstrap<-function(BData,BVar="Fruits",NIter=1000){
+
+  NorAM<-BData %>% filter(Region=="NorthAm") %>% select(all_of(BVar)) %>% pull() %>% mean(na.rm=T)
+  EU<-BData %>% filter(Region=="Europe") %>% select(all_of(BVar)) %>% pull() %>% mean(na.rm=T)
+  
+   RegDiff<-NorAM-EU
+   #Performing permutation simulation
+   SimDiff<-c()
   for (i in 1:NIter){
     BData$Region<-sample(BData$Region,replace=F)
-    tmpRegMeans<-tapply(BData[,BVar],list(BData$Region),mean,na.rm=T)
-    tmpRegDiff<-tmpRegMeans[["NorthAm"]]-tmpRegMeans[["Europe"]]
-    RegDiff<-c(RegDiff,tmpRegDiff)
+    NorAM<-BData %>% filter(Region=="NorthAm") %>% select(BVar) %>% pull() %>% mean(na.rm=T)
+    EU<-BData %>% filter(Region=="Europe") %>% select(BVar) %>% pull() %>% mean(na.rm=T)
+    tmpSimDiff<-NorAM-EU
+    SimDiff<-c(SimDiff,tmpSimDiff)
   }
-  # Count number of permutations where difference (tmpRegDiff) > observed difference (i.e. RegDiff)
-  PVal<-sum(abs(RegDiff[2:1001])>abs(RegDiff[1]))/1000 # Using absolute values (i.e. a 2-tailed test)
+   
+  # Count number of permutations where difference (SimDiff) > observed difference (i.e. RegDiff)
+  # Using absolute values (i.e. a 2-tailed test)
+  
+  PVal<-sum(abs(SimDiff>RegDiff))/length(SimDiff)
   PVal<-round(PVal,3)
-  if(PVal==0) PVal<-paste0("<",1/NIter)
+  
+  # Formating writting
+  if(PVal==0){ PVal<-paste0("< ",1/NIter) }
+  else if(PVal<0.01){ PVal<-"< 0.01" }
+  else if(PVal<0.05){ PVal<-"< 0.05" }
+  else { PVal<-paste0("= ",PVal) }
+  
   return(data.frame(MeanDiff=signif(RegDiff[1],3),P=PVal))
 }
+
+

@@ -1,0 +1,283 @@
+---
+title: "Plot_Data"
+author: "GGMFS Team"
+date: "19/04/2021"
+output: html_document
+---
+
+This script visualizes and provides some simple analyses on plot-level data. Plot level data includes both the density of rosette and bolts within plots and data on individual plant traits within plots. Data were obtained from previous correction scripts. See 'ggmfs-sausagemaking' repository for specific changes.
+
+
+## Data prep and function load
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+## Load FUNCTIONS
+
+# Simplified/clean theme for plotting
+source("../Functions/theme_black.R")
+# Create long-form data frame of individual plant traits. 
+source("../Functions/plotvars.R")
+# Create long-form data frame of plot-level count data 
+source("../Functions/plotcounts.R")
+
+# Import corrected data
+CorData<-read.csv("../CorrectedDataAll.csv",header=T,as.is=T)
+
+# Specify colour palette for different years
+YearPlt<-c("#CCFBFE33","#E4C1F933","#FF3C3833","#ffc50b33","#DBFE8733")
+
+# Make an output directory for images to write to (unless it exists already)
+dir.create(file.path(getwd(), "../DataExplore"), showWarnings = FALSE)
+
+```
+
+## Graphing correlations with fecundity 
+```{r}
+#Open file
+pdf("../DataExplore/BasicGraphs.pdf")
+
+ PData<-plotvars("Leaves","Fruits")
+ ggplot(aes(x=log(Fruits+1),y=log(Leaves+1),group=Year,col=Year),data=PData) + geom_point(size=5,pch=1,alpha=0.3) + geom_point(size=5,pch=16) + geom_smooth(method=lm) + 
+   ggtitle("Leaves vs Fruits") + theme_black() + scale_colour_manual(values=YearPlt)
+
+ PData<-plotvars("Adult","Fruits")
+ ggplot(aes(x=Fruits,y=Adult,group=Year,col=Year),data=PData) + geom_point(size=5,pch=1,alpha=0.5) + geom_point(size=5,pch=16) + 
+   ggtitle("Adult Height vs Fruits") + theme_black() + scale_colour_manual(values=YearPlt) 
+
+ PData<-plotvars("Fung","Fruits","Leaves")
+ #Obtaining percent damage
+ PData$FungPct<-PData$Fung/PData$Leaves
+ ggplot(aes(x=FungPct,y=log(Fruits+1),group=Year,col=Year),data=PData) + geom_point(size=5,pch=1,alpha=0.5) + geom_point(size=5,pch=16) + geom_smooth(method=lm) + 
+   ggtitle("Fungal % Dmg vs Fruits") + theme_black() + scale_colour_manual(values=YearPlt)
+
+  PData<-plotvars("Dmg","Fruits","Leaves")
+  #Obtaining percent damage
+ PData$HerbPct<-PData$Dmg/PData$Leaves
+ ggplot(aes(x=HerbPct,y=log(Fruits+1),group=Year,col=Year),data=PData) + geom_point(size=5,pch=1,alpha=0.5) + geom_point(size=5,pch=16) + geom_smooth(method=lm) + 
+   ggtitle("Herbivory % Dmg vs Fruits") + theme_black() + scale_colour_manual(values=YearPlt)
+ 
+
+## CLOSE FILE
+dev.off()
+
+```
+
+## Visualizing among population variation in selection. 
+This looks at the the relationship between fecundity and other traits in each population to see if they are different. 
+```{r}
+# Specify colour palette for different years (Higher alpha because fewer overlapping points)
+YearPlt<-c("#CCFBFE66","#E4C1F966","#FF3C3866","#ffc50b66","#DBFE8766")
+
+# Open file
+pdf("../DataExplore/SeparatePops.pdf",width=36,height=36)
+
+## Multi-faceted (by populations)
+ PData<-plotvars("Leaves","Fruits")
+ ModTmp<-lm(log(Leaves+1)~log(Fruits+1)*Pop_Code,data=PData)
+ ggplot(aes(x=log(Fruits+1),y=log(Leaves+1),group=Year,col=Year),data=PData) + geom_point(pch=1,alpha=0.5) + geom_point(pch=16) + geom_smooth(method=lm) + facet_wrap("Pop_Code") +
+   scale_colour_manual(values=YearPlt) +
+   geom_point(data=PData[abs(ModTmp$residuals)>sd(ModTmp$residuals,na.rm=T)*3,],shape=4,colour="red") +
+   ggtitle("Leaves vs Fruits") + theme_black()
+
+ PData<-plotvars("Adult","Fruits")
+ ModTmp<-lm(log(Adult+1)~log(Fruits+1)*Pop_Code,data=PData)
+ ggplot(aes(x=log(Fruits+1),y=log(Adult+1),group=Year,col=Year),data=PData) + geom_point(pch=1,alpha=0.5) + geom_point(pch=16) + geom_smooth(method=lm) + facet_wrap("Pop_Code") + 
+   scale_colour_manual(values=YearPlt) + 
+   ggtitle("Adult Height vs Fruits") + theme_black()
+
+  PData<-plotvars("Fruits","Adult")
+  ggplot(aes(x=1/Fruits,y=1/Adult,group=Year,col=Year),data=PData) + geom_point(pch=1,alpha=0.5) + geom_point(pch=16) + facet_wrap("Pop_Code") + 
+    scale_colour_manual(values=YearPlt) + 
+    ggtitle("Adult Height vs Fruits") + theme_black()
+  
+  ggplot(aes(x=Fruits,y=Adult,group=Year,col=Year),data=PData) + geom_point(pch=1,alpha=0.5) + geom_point(pch=16) + facet_wrap("Pop_Code") + 
+    scale_colour_manual(values=YearPlt) + 
+    ggtitle("Adult Height vs Fruits") + theme_black()
+  
+   PData<-plotvars("Fung","Fruits","Leaves")
+ #Obtaining percent damage
+ PData$FungPct<-PData$Fung/PData$Leaves
+ ModTmp<-lm(log(Fruits+1)~log(FungPct+1)*Pop_Code,data=PData)
+ ggplot(aes(x=log(FungPct+1),y=log(Fruits+1),group=Year,col=Year),data=PData) + geom_point(pch=1,alpha=0.5) + geom_point(pch=16) + geom_smooth(method=lm) + facet_wrap("Pop_Code") + 
+  scale_colour_manual(values=YearPlt) + 
+  ggtitle("Fungal % Damg vs Fruits") + theme_black() 
+ 
+   PData<-plotvars("Dmg","Fruits","Leaves")
+  #Obtaining percent damage
+ PData$HerbPct<-PData$Dmg/PData$Leaves
+ ModTmp<-lm(log(Fruits+1)~log(HerbPct+1)*Pop_Code,data=PData) 
+ ggplot(aes(x=log(HerbPct+1),y=log(Fruits+1),group=Year,col=Year),data=PData) + geom_point(pch=1,alpha=0.5) + geom_point(pch=16) + geom_smooth(method=lm) + facet_wrap("Pop_Code") + 
+  scale_colour_manual(values=YearPlt) + 
+  ggtitle("Herb % Dmg vs Fruits") + theme_black()
+
+ 
+    PData<-plotvars("Fung","Leaves","Dmg")
+ #Obtaining percent damage
+ PData$FungPct<-PData$Fung/PData$Leaves
+  PData$HerbPct<-PData$Dmg/PData$Leaves
+
+ ModTmp<-lm(log(FungPct+1)~log(HerbPct+1)*Pop_Code,data=PData) 
+ ggplot(aes(x=log(HerbPct+1),y=log(FungPct+1),group=Year,col=Year),data=PData) + geom_point(pch=1,alpha=0.5) + geom_point(pch=16) + geom_smooth(method=lm) + facet_wrap("Pop_Code") + 
+  scale_colour_manual(values=YearPlt) + 
+  ggtitle("Herb vs Fungal % Dmg") + theme_black()
+ 
+## CLOSE FILE
+dev.off()
+
+```
+
+## Visualizing adult & rosette counts 
+```{r}
+#Open file
+pdf("../DataExplore/CountData.pdf")
+
+ PData<-plotcounts("Ros","RosFung")
+ ggplot(aes(x=Ros,y=RosFung,group=Year,col=Year),data=PData) + geom_abline(intercept=0,col="grey",size=3,linetype="dashed") + geom_point(size=5) +
+   ggtitle("N Ros vs N Ros with fungus") + theme_black() + scale_colour_manual(values=YearPlt)
+
+ PData<-plotcounts("Adult","AdultFung")
+ ggplot(aes(x=Adult,y=AdultFung,group=Year,col=Year),data=PData) + geom_abline(intercept=0,col="grey",size=3,linetype="dashed") + geom_point(size=5) +
+   ggtitle("N Adult vs N Adults with fungus") + theme_black() + scale_colour_manual(values=YearPlt)
+
+ PData<-plotcounts("Ros","Adult")
+ ggplot(aes(x=Ros,y=Adult,group=Year,col=Year),data=PData) + geom_point(size=5) +
+   ggtitle("N Rosettes vs N Adults") + theme_black() + scale_colour_manual(values=YearPlt)
+ 
+ #Close file
+dev.off()
+```
+
+## Visualizing differences between Europe vs. NA
+```{r}
+RegPlt<-c("#32D9EC33","#DB3A3E33") # Colours for native vs. intro
+
+#Open file
+pdf("../DataExplore/Region_Compare.pdf")
+
+ PData<-plotvars("Leaves","Fruits",g="Region")
+ ggplot(aes(x=log(Fruits+1),y=log(Leaves+1),group=Region,col=Region),data=PData) + geom_point(size=5) + geom_smooth(method=lm,size=2) + 
+  ggtitle("Leaves vs Fruits") + theme_black() + scale_colour_manual(values=RegPlt)
+
+ PData<-plotvars("Adult","Fruits",g="Region")
+ ggplot(aes(x=log(Fruits+1),y=log(Adult+1),group=Region,col=Region),data=PData) + geom_point(size=5) + geom_smooth(method=lm,size=2) + 
+  ggtitle("Adult Height vs Fruits") + theme_black() + scale_colour_manual(values=RegPlt)
+
+ PData<-plotcounts("Ros","RosFung",g="Region")
+ ggplot(aes(x=Ros,y=RosFung,group=Region,col=Region),data=PData) + geom_abline(intercept=0,col="grey",size=3,linetype="dashed") + geom_point(size=5) +
+   ggtitle("N Ros vs N Ros with fungus") + theme_black() + scale_colour_manual(values=RegPlt)
+
+ PData<-plotcounts("Adult","AdultFung",g="Region")
+ ggplot(aes(x=Adult,y=AdultFung,group=Region,col=Region),data=PData) + geom_abline(intercept=0,col="grey",size=3,linetype="dashed") + geom_point(size=5) +
+   ggtitle("N Adult vs N Adults with fungus") + theme_black() + scale_colour_manual(values=RegPlt)
+
+ PData<-plotcounts("Ros","Adult",g="Region")
+ ggplot(aes(x=log(Ros+1),y=log(Adult+1),group=Region,col=Region),data=PData) + geom_point(size=5) +
+   ggtitle("N Rosettes vs N Adults") + theme_black() + scale_colour_manual(values=RegPlt)
+ 
+ #Close file 
+dev.off()
+
+```
+
+#Checking if there are edge effects on plant traits. 
+```{r}
+library(glmmTMB)
+
+
+PData<-plotvars("Leaves","Fruits","Dmg")
+PData$HerbPct<-PData$Dmg/PData$Leaves
+#Modifing all non-exterior plots to represent the interior of populations. 
+PData$Plot[PData$Plot!=1]<-"inner"
+
+#Testing for significane of edge effects. 
+fit<-glmmTMB(log(Leaves+1)~Plot+(1|Pop_Code),data=PData)
+fit2<-glmmTMB(log(Leaves+1)~(1|Pop_Code),data=PData)
+anova(fit,fit2)
+summary(fit)
+
+fit<-glmmTMB(log(Fruits+1)~Plot+(1|Pop_Code),data=PData)
+fit2<-glmmTMB(log(Fruits+1)~(1|Pop_Code),data=PData)
+anova(fit,fit2)
+summary(fit) 
+#Wow there is a very large edge effects on fruits, even before controlling for climate data. 
+
+
+
+fit<-glmmTMB(HerbPct~Plot+(1|Pop_Code),data=PData)
+fit2<-glmmTMB(HerbPct~(1|Pop_Code),data=PData)
+anova(fit,fit2)
+summary(fit)
+#Yes there are significant edge effects on the numer of leaves, with the outer plot being on average higher. 
+
+
+PData<-plotvars("Adult","Ros")
+#Modifing all non-exterior plots to represent the interior of populations. 
+PData$Plot[PData$Plot!=1]<-"inner"
+
+fit<-glmmTMB(Adult~Plot+(1|Pop_Code),data=PData)
+fit2<-glmmTMB(Adult~(1|Pop_Code),data=PData)
+anova(fit,fit2)
+summary(fit)
+
+
+fit<-glmmTMB(Ros~Plot+(1|Pop_Code),data=PData)
+fit2<-glmmTMB(Ros~(1|Pop_Code),data=PData)
+anova(fit,fit2)
+summary(fit)
+#Edge effects are not apparent on plant size data, however. 
+
+
+## Checking if the edge effects apparent at the plot level are further apparent at the location of the individual within the plot. 
+
+PData<-plotvars("Leaves","Fruits","Dmg")
+PData$HerbPct<-PData$Dmg/PData$Leaves
+#Modifing all non-exterior plots to represent the interior of populations. 
+PData$Plot[PData$Plot!=1]<-"inner"
+
+
+fit<-glmmTMB(Leaves~Plot*Meter+(1|Pop_Code),data=PData)
+fit2<-glmmTMB(Leaves~Plot+Meter+(1|Pop_Code),data=PData)
+anova(fit,fit2)
+summary(fit)
+
+fit<-glmmTMB(Fruits~Plot*Meter+(1|Pop_Code),data=PData)
+fit2<-glmmTMB(Fruits~Plot+Meter+(1|Pop_Code),data=PData)
+anova(fit,fit2)
+summary(fit) 
+
+#No edge effects appear to be described adequately at the plot level. 
+
+```
+
+# Checking edge effects on GM counts. 
+```{r}
+ PData<-plotcounts("Adult","Ros")
+#Modifing all non-exterior plots to represent the interior of populations. 
+PData$Plot[PData$Plot!=1]<-"inner"
+PData$TotalDensity<-PData$Adult+PData$Ros
+
+#Testing for significance of edge effects. 
+fit<-glmmTMB(TotalDensity~Plot+Year+(1|Pop_Code),data=PData)
+fit2<-glmmTMB(TotalDensity~Year+(1|Pop_Code),data=PData)
+anova(fit,fit2)
+summary(fit)
+
+#Testing for significance of edge effects. 
+fit<-glmmTMB(Adult~Plot+Year+Ros+(1|Pop_Code),data=PData)
+fit2<-glmmTMB(Adult~Year+Ros+(1|Pop_Code),data=PData)
+anova(fit,fit2)
+summary(fit)
+
+#Testing for significance of edge effects. 
+fit<-glmmTMB(Ros~Plot+Year+Adult+(1|Pop_Code),data=PData)
+fit2<-glmmTMB(Ros~Year+Adult+(1|Pop_Code),data=PData)
+anova(fit,fit2)
+summary(fit)
+
+```
+
+
+

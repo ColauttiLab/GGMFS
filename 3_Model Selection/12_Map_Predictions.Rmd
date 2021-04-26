@@ -1,0 +1,107 @@
+---
+title: "Map_Predictions"
+author: "GGMFS Team"
+date: "23/04/2021"
+output: html_document
+---
+
+## Data prep and function load
+```{r}
+library(raster)
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(tidyr)
+library(viridis)
+
+## Import data
+# GBIF Records
+
+# NOTE: Occurrence data from GBIF.ORG
+AllRecs<-read.csv("../GBIF_Locations.csv",header=T) 
+# Exclude tropics and southern hemisphere
+AllRecs<-AllRecs[AllRecs$decimalLatitude > 26,] 
+
+# Add region info for later graphing
+AllRecs$Region<-NA
+
+# Europe, western Asia and Middle East
+AllRecs$Region[AllRecs$decimalLongitude > -35 & AllRecs$decimalLongitude < 50]<-"Europe" 
+# North American Longitudes
+AllRecs$Region[AllRecs$decimalLongitude < -35 & AllRecs$decimalLongitude  > -168]<-"NorthAm" 
+
+# Check that locations are only in North America and Europe
+qplot(AllRecs$decimalLongitude,AllRecs$decimalLatitude)+ylim(-90,90)+xlim(-180,180) 
+
+# GGMFS Data
+#PopMeans<-read.csv("../Population_Means.csv", header=T) # Import data
+#PopLocs<-PopMeans[,c("Longitude","Latitude","Pop_Code","Region")] # Remove unused variables
+
+# Read in loadings from Climate Model (PCRegression)
+PopMeans<-read.csv("../PCData.csv",row.names=1)
+
+# 'Threat' calculations
+PopMeans<-PopMeans %>% mutate(ThreatPred=MeanFruits+TotalDens+Pop_Size)
+
+# Set heatmap colours - should be list of 5 colours for min, 25%, 50%, 75% and max
+Clrs<-c("black","blue","cyan","green","yellow","red","white")
+
+```
+
+## Plot Europe and NorthAm on same Map
+```{r}
+
+mega="MeanFruits"
+pred="MeanFruits"
+  
+## Invasion Threat
+plotmap<-function(pred=NA,title="NONE",mega=NA){
+  
+  # Identify "Mega-Populations" (highest 95% of vector defined by 'mega' variable. This is anly column where you are interested in the ones above the 95th percentile. This function subsets the dataframe to contain only these outlying "mega" populations)
+
+upperLimit<-quantile(pull(PopMeans %>% select(mega)), 0.95,na.rm=T)
+
+#Denoting which populations are mega populations
+PopMeans$mega<-PopMeans %>% select(mega) %>% pull()
+PopMeans$mega[PopMeans$mega>upperLimit]<-"Yes"
+PopMeans$mega[PopMeans$mega!="Yes"]<-"No"
+
+#Adding in pred variable
+PopMeans$pred<-PopMeans %>% select(pred) %>% pull()
+
+
+  # Create plot
+  PltMap<-ggplot(aes(x=Longitude,y=Latitude),data=PopMeans)+
+    theme_classic(base_size=12)+
+    geom_point(aes(colour=pred,shape=mega),alpha=0.5,size=3)+
+    #scale_color_gradientn(colours=Clrs)+
+    scale_color_viridis()+
+    ggtitle(title)
+ 
+  # Output plot to .png
+    return(PltMap)
+}
+
+str(PopMeans)
+PopMeans$Longitude
+
+png("../Maps/Predict_Fruits.png",width=21,height=7,units="in",res=200)
+  plotmap(pred="MeanFruits",title="Predicted Fruits",mega="MeanFruits")
+  
+dev.off()
+png("../Maps/Predict_Density.png",width=21,height=7,units="in",res=200)
+  plotmap(pred="TotalDens",title="Predicted Density",mega="TotalDens")
+dev.off()
+png("../Maps/Predict_RosRatio.png",width=21,height=7,units="in",res=200)
+  plotmap(pred="RosRatio",title="Predicted Rosette Ratio",mega="RosRatio")  
+dev.off()
+png("../Maps/Predict_PopSize.png",width=21,height=7,units="in",res=200)
+  plotmap(pred="Pop_Size",title="Predicted Pop Size",mega="Pop_Size")
+dev.off()
+png("../Maps/Predict_Threat.png"),width=21,height=7,units="in",res=200)
+  plotmap(pred="ThreatPred",title="Predicted Threat",mega="PerfInd")
+dev.off()
+
+```
+
+

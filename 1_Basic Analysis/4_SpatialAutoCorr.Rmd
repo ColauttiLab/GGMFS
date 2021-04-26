@@ -1,0 +1,74 @@
+---
+title: "SpatialAutoCorr"
+author: "GGMFS Team"
+date: "21/04/2021"
+output: html_document
+---
+
+ This script compares Native and Introduced populations, while accounting for spatially auto-correlated errors.
+
+## Data prep and function load
+```{r}
+library(ggplot2)
+library(nlme)
+library(glmulti)
+library(dplyr)
+library(tidyr)
+
+# Load custom funciton
+source("../functions/regionbootstrap.R")
+
+##############################
+## Load data
+##############################
+PopMeans<-read.csv("../Population_Means.csv")
+SubData<-PopMeans[!duplicated(PopMeans[,c("Longitude","Latitude")]),]
+
+PopMeans$MeanFruits
+```
+
+
+## Basic GLS models with spatially autocorrelated errors of plant traits
+```{r}
+# Individual Fecundity (population average), controlling for longitude and latitude
+Fruits<-gls(MeanFruits~1+Region,data=SubData,correlation=corExp(form=~Longitude+Latitude|Region),na.action=na.exclude) 
+
+anova(Fruits)
+summary(Fruits)
+summary(lm(MeanFruits~1+Region,data=SubData)) # Compare to simple linear model
+
+# Individual plant Height (population average), controlling for longitude and latitude
+Height<-gls(MeanAdultHeight~1+Region,data=SubData,correlation=corExp(form=~Longitude+Latitude|Region),na.action=na.exclude) 
+
+anova(Height)
+summary(Height)
+summary(lm(MeanAdultHeight~1+Region,data=SubData)) # Compare to simple linear model
+```
+
+
+## Basic GLS models with spatially autocorrelated errors of population traits
+```{R}
+# Total population size (Extent x Density)
+TotalSize<-gls(log(Population_Abundance+1)~1+Region,data=SubData,correlation=corExp(form=~Longitude+Latitude|Region),na.action=na.exclude) # Add spatial structure
+anova(TotalSize)
+summary(TotalSize)
+summary(lm(log(Population_Abundance+1)~1+Region,data=SubData,na.action=na.exclude)) # Add spatial structure
+
+# Estimate mean difference between regions
+Fits<-exp(TotalSize$fitted)-1
+Reg<-TotalSize$groups
+mean(Fits[Reg=="NorthAm"])-mean(Fits[Reg=="Europe"])
+
+# Rosette ratio
+RosRatio<-gls(RosRatio~1+Region,data=SubData,correlation=corExp(form=~Longitude+Latitude|Region),na.action=na.exclude) # Add spatial structure
+anova(RosRatio)
+summary(RosRatio)
+summary(lm(RosRatio~1+Region,data=SubData,na.action=na.exclude))
+exp(summary(RosRatio)$coefficients[2])
+```
+
+
+
+
+
+
